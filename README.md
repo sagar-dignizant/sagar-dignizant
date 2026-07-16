@@ -26,7 +26,7 @@
 <!-- Stats cards -->
 <p align="center">
   <img src="https://github-readme-stats.vercel.app/api?username=sagar-dignizant&show_icons=true&theme=tokyonight&hide_border=true&count_private=true" alt="GitHub stats" height="165" />
-  <img src="https://github-readme-streak-stats.herokuapp.com?user=sagar-dignizant&theme=tokyonight&hide_border=true" alt="Streak stats" height="165" />
+  <img src="https://streak-stats.demolab.com?user=sagar-dignizant&theme=tokyonight&hide_border=true&exclude_days=Sat%2CSun" alt="Streak stats" height="165" />
 </p>
 
 <p align="center">
