@@ -3,7 +3,7 @@
 <!-- Animated typing header -->
 <p align="center">
   <a href="https://github.com/sagar-dignizant">
-    <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=26&pause=1000&center=true&vCenter=true&width=500&lines=Hi%2C+I'm+Sagar+%F0%9F%91%8B;Developer+%7C+4%2B+Years+of+Experience;Building+things+for+the+web" alt="Typing animation" />
+    <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=26&pause=1000&center=true&vCenter=true&width=700&lines=Hi%2C+I'm+Sagar+%F0%9F%91%8B;Developer+%7C+4%2B+Years+of+Experience;Building+things+for+the+web" alt="Typing animation" />
   </a>
 </p>
 
