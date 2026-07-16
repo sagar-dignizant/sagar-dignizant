@@ -1,0 +1,49 @@
+# Save this file as: .github/workflows/update-experience.yml
+# in your profile repo: sagar-dignizant/sagar-dignizant
+#
+# >>> IMPORTANT: badla khali START_DATE - tumchi job start date (YYYY-MM-DD) <<<
+
+name: Update Years of Experience
+
+on:
+  schedule:
+    - cron: "30 0 * * *"   # runs daily at 00:30 UTC
+  workflow_dispatch:         # manual run option from Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Calculate and update experience
+        run: |
+          # ============================================
+          # TUMCHI JOB START DATE ithe taka (YYYY-MM-DD):
+          START_DATE="2022-05-17"
+          # ============================================
+
+          NOW=$(date +%s)
+          START=$(date -d "$START_DATE" +%s)
+          YEARS=$(( (NOW - START) / 31557600 ))   # 365.25 days per year
+
+          echo "Experience: ${YEARS}+ years (since $START_DATE)"
+
+          # README madhla juna aakda replace kara (e.g. 4%2B -> 5%2B)
+          sed -i -E "s/[0-9]+%2B\+Years\+of\+Experience/${YEARS}%2B+Years+of+Experience/g" README.md
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet README.md; then
+            git add README.md
+            git commit -m "chore: update years of experience automatically"
+            git push
+          else
+            echo "No change needed - experience count is up to date."
+          fi
