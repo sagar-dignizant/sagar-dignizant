@@ -1,0 +1,29 @@
+name: Daily Commit (Streak Keeper)
+
+on:
+  schedule:
+    - cron: "30 3 * * *"   # 3:30 AM UTC = 9:00 AM IST daily
+  workflow_dispatch:         # manual run pan karta yeil
+
+permissions:
+  contents: write
+
+jobs:
+  commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update timestamp file
+        run: |
+          mkdir -p .streak
+          echo "Last updated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" > .streak/last-update.txt
+
+      - name: Commit and push
+        run: |
+          git config user.name "sagar-dignizant"
+          git config user.email "sagar.mali@dignizant.com"
+          git add .streak/last-update.txt
+          git commit -m "chore: daily streak update" || echo "No changes"
+          git push
