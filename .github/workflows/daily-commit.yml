@@ -2,8 +2,8 @@ name: Daily Commit (Streak Keeper)
 
 on:
   schedule:
-    - cron: "30 3 * * *"   # 3:30 AM UTC = 9:00 AM IST daily
-  workflow_dispatch:         # manual run pan karta yeil
+    - cron: "30 3 * * *" # 3:30 AM UTC = 9:00 AM IST daily
+  workflow_dispatch: # manual run option from Actions tab
 
 permissions:
   contents: write
@@ -23,7 +23,7 @@ jobs:
       - name: Commit and push
         run: |
           git config user.name "sagar-dignizant"
-          git config user.email "sagar.mali@dignizant.com"
+          git config user.email "107827289+sagar-dignizant@users.noreply.github.com"
           git add .streak/last-update.txt
-          git commit -m "chore: daily streak update" || echo "No changes"
+          git commit -m "chore: daily streak update" || echo "No changes to commit"
           git push
