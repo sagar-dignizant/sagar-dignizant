@@ -2,8 +2,14 @@ name: Daily Commit (Streak Keeper)
 
 on:
   schedule:
-    - cron: "30 3 * * *" # 3:30 AM UTC = 9:00 AM IST daily
-  workflow_dispatch: # manual run option from Actions tab
+    # 16:00 UTC = 21:30 IST, Mon-Fri only (1-5 = Mon..Fri)
+    - cron: "0 16 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Force a commit (ignore weekend + already-committed checks)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -15,15 +21,73 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Decide whether a commit is needed
+        id: check
+        env:
+          GH_USER: sagar-dignizant
+          FORCE: ${{ inputs.force }}
+        run: |
+          set -uo pipefail
+
+          TODAY=$(TZ=Asia/Kolkata date +%F)
+          DOW=$(TZ=Asia/Kolkata date +%u)   # 1=Mon ... 6=Sat, 7=Sun
+          echo "IST date: $TODAY (day-of-week: $DOW)"
+
+          if [ "$FORCE" = "true" ]; then
+            echo "Manual force run - committing."
+            echo "commit=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # ---- Weekend skip ----
+          if [ "$DOW" -ge 6 ]; then
+            echo "Weekend (Sat/Sun) - no streak commit."
+            echo "commit=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # ---- Already contributed today? ----
+          HTML=$(curl -sL --max-time 30 "https://github.com/users/$GH_USER/contributions") || HTML=""
+
+          if [ -z "$HTML" ]; then
+            echo "Could not fetch contribution graph - committing to be safe."
+            echo "commit=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          LEVEL=$(printf '%s' "$HTML" \
+            | grep -o "data-date=\"$TODAY\"[^>]*data-level=\"[0-9]*\"" \
+            | grep -o 'data-level="[0-9]*"' \
+            | grep -o '[0-9]*' | head -1)
+
+          if [ -z "$LEVEL" ]; then
+            echo "Today's cell not found in graph - committing to be safe."
+            echo "commit=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Contribution level for $TODAY: $LEVEL"
+
+          if [ "$LEVEL" -gt 0 ]; then
+            echo "Already contributed today - nothing to do."
+            echo "commit=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "No contributions yet today - streak commit needed."
+            echo "commit=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Update timestamp file
+        if: steps.check.outputs.commit == 'true'
         run: |
           mkdir -p .streak
-          echo "Last updated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" > .streak/last-update.txt
+          echo "Last updated: $(TZ=Asia/Kolkata date '+%Y-%m-%d %H:%M:%S IST')" > .streak/last-update.txt
 
       - name: Commit and push
+        if: steps.check.outputs.commit == 'true'
         run: |
           git config user.name "sagar-dignizant"
           git config user.email "107827289+sagar-dignizant@users.noreply.github.com"
           git add .streak/last-update.txt
-          git commit -m "chore: daily streak update" || echo "No changes to commit"
+          git commit -m "chore: daily streak update" || { echo "Nothing to commit"; exit 0; }
+          git pull --rebase --autostash
           git push
