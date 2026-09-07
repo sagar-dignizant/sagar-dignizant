@@ -1,14 +1,13 @@
 # .github/workflows/metrics.yml
+# Replaces your current metrics.yml (same path, same filename).
 #
-# SETUP (one time):
-#   1. Create a classic PAT: https://github.com/settings/tokens
-#      Scopes: read:user  (add "repo" too if you want private-repo stats counted)
-#   2. Repo Settings > Secrets and variables > Actions > New repository secret
-#      Name: METRICS_TOKEN   Value: <the PAT>
-#   3. Commit this file, then Actions tab > "Metrics" > Run workflow.
-#
-# It writes SVGs into metrics/ in this repo, so the README loads them from
-# raw.githubusercontent.com - no third-party server to rate-limit you.
+# Changes from the last version:
+#   - overview card: dropped the "community" and "repositories" blocks, which
+#     were almost all zeros for you. Kept "activity" for the commits / PR counts.
+#   - added a classic contribution-calendar heatmap (calendar.svg).
+#   - renamed the 3D card to isocalendar.svg so the two are distinguishable.
+#   - removed the languages card: with a read:user-only token it can only see
+#     public repos, so it rendered "0 Languages". See the note at the bottom.
 
 name: Metrics
 
@@ -27,7 +26,7 @@ jobs:
   metrics:
     runs-on: ubuntu-latest
     steps:
-      # Overview card - replaces github-readme-stats.vercel.app/api
+      # Commits / PRs, without the zero-filled sections
       - name: Overview
         uses: lowlighter/metrics@latest
         with:
@@ -35,25 +34,11 @@ jobs:
           user: sagar-dignizant
           filename: metrics/overview.svg
           template: classic
-          base: header, activity, community, repositories
+          base: header, activity
           config_timezone: Asia/Kolkata
           config_display: large
 
-      # Languages card - replaces .../api/top-langs
-      - name: Languages
-        uses: lowlighter/metrics@latest
-        with:
-          token: ${{ secrets.METRICS_TOKEN }}
-          user: sagar-dignizant
-          filename: metrics/languages.svg
-          base: ""
-          config_timezone: Asia/Kolkata
-          plugin_languages: yes
-          plugin_languages_limit: 8
-          plugin_languages_details: percentage
-          plugin_languages_sections: most-used
-
-      # Year calendar - replaces github-readme-activity-graph.vercel.app
+      # Classic contribution graph (year heatmap) - this is the one you wanted
       - name: Calendar
         uses: lowlighter/metrics@latest
         with:
@@ -62,5 +47,37 @@ jobs:
           filename: metrics/calendar.svg
           base: ""
           config_timezone: Asia/Kolkata
+          plugin_calendar: yes
+          plugin_calendar_limit: 1     # years to show; 0 = every year you've been on GitHub
+
+      # 3D isometric calendar + streak/commits-per-day facts
+      - name: Isocalendar
+        uses: lowlighter/metrics@latest
+        with:
+          token: ${{ secrets.METRICS_TOKEN }}
+          user: sagar-dignizant
+          filename: metrics/isocalendar.svg
+          base: ""
+          config_timezone: Asia/Kolkata
           plugin_isocalendar: yes
           plugin_isocalendar_duration: full-year
+
+      # ---------------------------------------------------------------------
+      # Want the languages card back? Regenerate your PAT with the "repo"
+      # scope ticked (that grants read/write on every private repo you can
+      # access, including your employer's - your call), update the
+      # METRICS_TOKEN secret, then uncomment this step:
+      #
+      # - name: Languages
+      #   uses: lowlighter/metrics@latest
+      #   with:
+      #     token: ${{ secrets.METRICS_TOKEN }}
+      #     user: sagar-dignizant
+      #     filename: metrics/languages.svg
+      #     base: ""
+      #     config_timezone: Asia/Kolkata
+      #     plugin_languages: yes
+      #     plugin_languages_limit: 8
+      #     plugin_languages_details: percentage
+      #     plugin_languages_sections: most-used
+      # ---------------------------------------------------------------------
