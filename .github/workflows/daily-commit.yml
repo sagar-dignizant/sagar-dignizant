@@ -2,8 +2,12 @@ name: Daily Commit (Streak Keeper)
 
 on:
   schedule:
-    # 16:00 UTC = 21:30 IST, Mon-Fri only (1-5 = Mon..Fri)
-    - cron: "0 16 * * 1-5"
+    # Two attempts per weekday, at odd minutes (NOT :00 - that slot is the most
+    # congested on GitHub's scheduler and runs there get delayed or dropped).
+    # 14:23 UTC = 19:53 IST  (primary)
+    # 17:23 UTC = 22:53 IST  (backup - skips itself if the primary already ran)
+    - cron: "23 14 * * 1-5"
+    - cron: "23 17 * * 1-5"
   workflow_dispatch:
     inputs:
       force:
@@ -14,12 +18,18 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: streak-keeper
+  cancel-in-progress: false
+
 jobs:
   commit:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Decide whether a commit is needed
         id: check
@@ -33,7 +43,7 @@ jobs:
           DOW=$(TZ=Asia/Kolkata date +%u)   # 1=Mon ... 6=Sat, 7=Sun
           echo "IST date: $TODAY (day-of-week: $DOW)"
 
-          if [ "$FORCE" = "true" ]; then
+          if [ "${FORCE:-false}" = "true" ]; then
             echo "Manual force run - committing."
             echo "commit=true" >> "$GITHUB_OUTPUT"
             exit 0
@@ -47,7 +57,10 @@ jobs:
           fi
 
           # ---- Already contributed today? ----
-          HTML=$(curl -sL --max-time 30 "https://github.com/users/$GH_USER/contributions") || HTML=""
+          # Retries, because a single failed fetch used to decide the whole day.
+          HTML=$(curl -sL --retry 4 --retry-delay 5 --retry-all-errors --max-time 40 \
+                   -H "User-Agent: streak-keeper" \
+                   "https://github.com/users/$GH_USER/contributions") || HTML=""
 
           if [ -z "$HTML" ]; then
             echo "Could not fetch contribution graph - committing to be safe."
@@ -55,10 +68,11 @@ jobs:
             exit 0
           fi
 
-          LEVEL=$(printf '%s' "$HTML" \
-            | grep -o "data-date=\"$TODAY\"[^>]*data-level=\"[0-9]*\"" \
-            | grep -o 'data-level="[0-9]*"' \
-            | grep -o '[0-9]*' | head -1)
+          # Grab today's whole cell tag first, then read the level out of it.
+          # (The old one-line regex assumed data-date came before data-level in
+          # the tag; GitHub has reordered those attributes before.)
+          CELL=$(printf '%s' "$HTML" | tr '>' '>\n' | grep -m1 "data-date=\"$TODAY\"")
+          LEVEL=$(printf '%s' "$CELL" | grep -o 'data-level="[0-9]*"' | grep -o '[0-9]*' | head -1)
 
           if [ -z "$LEVEL" ]; then
             echo "Today's cell not found in graph - committing to be safe."
@@ -76,18 +90,37 @@ jobs:
             echo "commit=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Update timestamp file
-        if: steps.check.outputs.commit == 'true'
-        run: |
-          mkdir -p .streak
-          echo "Last updated: $(TZ=Asia/Kolkata date '+%Y-%m-%d %H:%M:%S IST')" > .streak/last-update.txt
-
       - name: Commit and push
         if: steps.check.outputs.commit == 'true'
         run: |
+          set -euo pipefail   # a failed push now FAILS the job, so you get an
+                              # email instead of losing the day silently
+
+          BRANCH="${GITHUB_REF_NAME}"
+          mkdir -p .streak
+          echo "Last updated: $(TZ=Asia/Kolkata date '+%Y-%m-%d %H:%M:%S IST')" > .streak/last-update.txt
+
           git config user.name "sagar-dignizant"
           git config user.email "107827289+sagar-dignizant@users.noreply.github.com"
           git add .streak/last-update.txt
-          git commit -m "chore: daily streak update" || { echo "Nothing to commit"; exit 0; }
-          git pull --rebase --autostash
-          git push
+
+          if git diff --cached --quiet; then
+            echo "Nothing staged - unexpected, but not fatal."
+            exit 0
+          fi
+
+          git commit -m "chore: daily streak update"
+
+          # Retry the push - a race with another push used to kill the run.
+          for i in 1 2 3; do
+            git pull --rebase --autostash origin "$BRANCH" || true
+            if git push origin "HEAD:$BRANCH"; then
+              echo "Pushed on attempt $i"
+              exit 0
+            fi
+            echo "Push attempt $i failed, retrying in 10s..."
+            sleep 10
+          done
+
+          echo "::error::Streak commit could not be pushed after 3 attempts."
+          exit 1
